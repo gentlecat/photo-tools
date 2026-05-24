@@ -15,34 +15,34 @@ func TestProcessFile(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	tests := []struct {
-		name     string
-		input    string
-		expected string
-		changed  bool
+		name            string
+		input           string
+		expected        string
+		expectedChanged bool
 	}{
 		{
-			name:     "contains double quotes",
-			input:    `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description xmp:Rating="0"/></rdf:RDF></x:xmpmeta>`,
-			expected: `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description /></rdf:RDF></x:xmpmeta>`,
-			changed:  true,
+			name:            "contains double quotes",
+			input:           `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description xmp:Rating="0"/></rdf:RDF></x:xmpmeta>`,
+			expected:        `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description /></rdf:RDF></x:xmpmeta>`,
+			expectedChanged: true,
 		},
 		{
-			name:     "contains single quotes",
-			input:    `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description xmp:Rating='0'/></rdf:RDF></x:xmpmeta>`,
-			expected: `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description /></rdf:RDF></x:xmpmeta>`,
-			changed:  true,
+			name:            "contains single quotes",
+			input:           `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description xmp:Rating='0'/></rdf:RDF></x:xmpmeta>`,
+			expected:        `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description /></rdf:RDF></x:xmpmeta>`,
+			expectedChanged: true,
 		},
 		{
-			name:     "no rating 0",
-			input:    `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description xmp:Rating="5"/></rdf:RDF></x:xmpmeta>`,
-			expected: `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description xmp:Rating="5"/></rdf:RDF></x:xmpmeta>`,
-			changed:  false,
+			name:            "no rating 0",
+			input:           `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description xmp:Rating="5"/></rdf:RDF></x:xmpmeta>`,
+			expected:        `<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF><rdf:Description xmp:Rating="5"/></rdf:RDF></x:xmpmeta>`,
+			expectedChanged: false,
 		},
 		{
-			name:     "mixed ratings",
-			input:    `xmp:Rating="0" xmp:Rating="1" xmp:Rating='0'`,
-			expected: ` xmp:Rating="1" `,
-			changed:  true,
+			name:            "mixed ratings",
+			input:           `xmp:Rating="0" xmp:Rating="1" xmp:Rating='0'`,
+			expected:        ` xmp:Rating="1" `,
+			expectedChanged: true,
 		},
 	}
 
@@ -54,9 +54,12 @@ func TestProcessFile(t *testing.T) {
 				t.Fatalf("failed to write test file: %v", err)
 			}
 
-			err = processFile(path, false)
+			changed, err := processFile(path, false)
 			if err != nil {
 				t.Fatalf("processFile failed: %v", err)
+			}
+			if changed != tt.expectedChanged {
+				t.Errorf("expected changed=%v, got %v", tt.expectedChanged, changed)
 			}
 
 			content, err := os.ReadFile(path)
