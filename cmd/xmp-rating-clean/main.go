@@ -1,3 +1,6 @@
+// This script cleans up XMP files by removing zero ratings. Some photo management applications write xmp:Rating="0"
+// to XMP sidecar files when no rating has been assigned, which can interfere with other tools. This script scans a
+// directory recursively, finds all .xmp files containing xmp:Rating="0", and removes that attribute from them.
 package main
 
 import (
@@ -9,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 func main() {
@@ -29,20 +33,26 @@ func main() {
 
 	log.Printf("Cleaning up XMP ratings in %v (workers: %d)", *dirPath, *workers)
 
-	paths := make(chan string, *workers)
+	paths := make(chan string, *workers*10)
 	errs := make(chan error, 1)
 
+	var total, cleaned atomic.Int64
 	var wg sync.WaitGroup
 	for i := 0; i < *workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for path := range paths {
-				if err := processFile(path, *dryRun); err != nil {
+				total.Add(1)
+				changed, err := processFile(path, *dryRun)
+				if err != nil {
 					select {
 					case errs <- err:
 					default:
+						log.Printf("error processing file: %v", err)
 					}
+				} else if changed {
+					cleaned.Add(1)
 				}
 			}
 		}()
@@ -75,17 +85,20 @@ func main() {
 	default:
 	}
 
-	fmt.Println("\nDone!")
+	fmt.Printf("\nDone! Cleaned %d of %d file(s).\n", cleaned.Load(), total.Load())
 }
 
-func processFile(path string, dryRun bool) error {
-	content, err := os.ReadFile(path)
+func processFile(path string, dryRun bool) (bool, error) {
+	info, err := os.Stat(path)
 	if err != nil {
-		return fmt.Errorf("failed to read file %s: %v", path, err)
+		return false, fmt.Errorf("failed to stat file %s: %w", path, err)
 	}
 
-	// We look for xmp:Rating="0" and xmp:Rating='0'
-	// The user specifically mentioned xmp:Rating="0"
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false, fmt.Errorf("failed to read file %s: %w", path, err)
+	}
+
 	targets := []string{`xmp:Rating="0"`, `xmp:Rating='0'`}
 
 	modifiedContent := content
@@ -103,12 +116,12 @@ func processFile(path string, dryRun bool) error {
 			log.Printf("[DRY RUN] Would clean up %s", path)
 		} else {
 			log.Printf("Cleaning up %s", path)
-			err = os.WriteFile(path, modifiedContent, 0644)
+			err = os.WriteFile(path, modifiedContent, info.Mode())
 			if err != nil {
-				return fmt.Errorf("failed to write file %s: %v", path, err)
+				return false, fmt.Errorf("failed to write file %s: %w", path, err)
 			}
 		}
 	}
 
-	return nil
+	return changed, nil
 }
