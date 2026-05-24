@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,7 +8,7 @@ import (
 
 func TestProcessFile(t *testing.T) {
 	// Create a temporary directory
-	tmpDir, err := ioutil.TempDir("", "xmp-test")
+	tmpDir, err := os.MkdirTemp("", "xmp-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -50,7 +49,7 @@ func TestProcessFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := filepath.Join(tmpDir, tt.name+".xmp")
-			err := ioutil.WriteFile(path, []byte(tt.input), 0644)
+			err := os.WriteFile(path, []byte(tt.input), 0644)
 			if err != nil {
 				t.Fatalf("failed to write test file: %v", err)
 			}
@@ -60,7 +59,7 @@ func TestProcessFile(t *testing.T) {
 				t.Fatalf("processFile failed: %v", err)
 			}
 
-			content, err := ioutil.ReadFile(path)
+			content, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatalf("failed to read file after process: %v", err)
 			}
