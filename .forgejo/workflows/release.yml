@@ -39,21 +39,37 @@ jobs:
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o dist/xmp-rating-clean-windows-amd64.exe ./cmd/xmp-rating-clean
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o dist/xmp-cleanup-windows-amd64.exe      ./cmd/xmp-cleanup
 
-      - name: Create release and upload assets
+      - name: Update latest release
         env:
           FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
-          TAG: ${{ github.sha }}
           API: ${{ github.server_url }}/api/v1
           REPO: ${{ github.repository }}
         run: |
+          # Delete existing "latest" release if it exists
+          EXISTING_ID=$(curl -s "$API/repos/$REPO/releases/tags/latest" \
+            -H "Authorization: token $FORGEJO_TOKEN" \
+            | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+
+          if [ -n "$EXISTING_ID" ]; then
+            echo "Deleting existing latest release (ID: $EXISTING_ID)..."
+            curl -s -X DELETE "$API/repos/$REPO/releases/$EXISTING_ID" \
+              -H "Authorization: token $FORGEJO_TOKEN"
+          fi
+
+          # Delete and recreate the "latest" tag so it points to the new commit
+          curl -s -X DELETE "$API/repos/$REPO/tags/latest" \
+            -H "Authorization: token $FORGEJO_TOKEN" || true
+
+          # Create a new "latest" release
           RELEASE_ID=$(curl -s -X POST "$API/repos/$REPO/releases" \
             -H "Authorization: token $FORGEJO_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"draft\":false,\"prerelease\":false}" \
+            -d "{\"tag_name\":\"latest\",\"name\":\"latest\",\"draft\":false,\"prerelease\":false}" \
             | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
 
           echo "Release ID: $RELEASE_ID"
 
+          # Upload each binary
           for file in dist/*; do
             filename=$(basename "$file")
             echo "Uploading $filename..."
