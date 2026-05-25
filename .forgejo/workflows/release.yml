@@ -45,35 +45,38 @@ jobs:
           API: ${{ github.server_url }}/api/v1
           REPO: ${{ github.repository }}
         run: |
-          # Delete existing "latest" release if it exists
-          EXISTING_ID=$(curl -s "$API/repos/$REPO/releases/tags/latest" \
-            -H "Authorization: token $FORGEJO_TOKEN" \
-            | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+          set -e
 
-          if [ -n "$EXISTING_ID" ]; then
+          # Delete existing "latest" release if it exists
+          EXISTING=$(curl -sf "$API/repos/$REPO/releases/tags/latest" \
+            -H "Authorization: token $FORGEJO_TOKEN" || echo "")
+
+          if [ -n "$EXISTING" ]; then
+            EXISTING_ID=$(echo "$EXISTING" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
             echo "Deleting existing latest release (ID: $EXISTING_ID)..."
-            curl -s -X DELETE "$API/repos/$REPO/releases/$EXISTING_ID" \
-              -H "Authorization: token $FORGEJO_TOKEN"
+            curl -sf -X DELETE "$API/repos/$REPO/releases/$EXISTING_ID" \
+              -H "Authorization: token $FORGEJO_TOKEN" || true
           fi
 
-          # Delete and recreate the "latest" tag so it points to the new commit
-          curl -s -X DELETE "$API/repos/$REPO/tags/latest" \
+          # Delete the "latest" tag so it can be recreated pointing to the new commit
+          curl -sf -X DELETE "$API/repos/$REPO/tags/latest" \
             -H "Authorization: token $FORGEJO_TOKEN" || true
 
           # Create a new "latest" release
-          RELEASE_ID=$(curl -s -X POST "$API/repos/$REPO/releases" \
+          RESPONSE=$(curl -sf -X POST "$API/repos/$REPO/releases" \
             -H "Authorization: token $FORGEJO_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"tag_name\":\"latest\",\"name\":\"latest\",\"draft\":false,\"prerelease\":false}" \
-            | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+            -d "{\"tag_name\":\"latest\",\"name\":\"latest\",\"draft\":false,\"prerelease\":false}")
 
+          echo "Create release response: $RESPONSE"
+          RELEASE_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
           echo "Release ID: $RELEASE_ID"
 
           # Upload each binary
           for file in dist/*; do
             filename=$(basename "$file")
             echo "Uploading $filename..."
-            curl -s -X POST "$API/repos/$REPO/releases/$RELEASE_ID/assets?name=$filename" \
+            curl -sf -X POST "$API/repos/$REPO/releases/$RELEASE_ID/assets?name=$filename" \
               -H "Authorization: token $FORGEJO_TOKEN" \
               -H "Content-Type: application/octet-stream" \
               --data-binary @"$file"
