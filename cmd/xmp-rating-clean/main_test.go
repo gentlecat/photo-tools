@@ -54,7 +54,7 @@ func TestProcessFile(t *testing.T) {
 				t.Fatalf("failed to write test file: %v", err)
 			}
 
-			changed, err := processFile(path, false)
+			changed, err := processFile(path, "0", false)
 			if err != nil {
 				t.Fatalf("processFile failed: %v", err)
 			}

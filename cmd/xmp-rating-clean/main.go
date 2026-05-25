@@ -1,6 +1,6 @@
-// This script cleans up XMP files by removing zero ratings. Some photo management applications write xmp:Rating="0"
-// to XMP sidecar files when no rating has been assigned, which can interfere with other tools. This script scans a
-// directory recursively, finds all .xmp files containing xmp:Rating="0", and removes that attribute from them.
+// This script cleans up XMP files by removing a specified rating value. Some photo management applications write
+// xmp:Rating to XMP sidecar files, which can interfere with other tools. This script scans a directory recursively,
+// finds all .xmp files containing xmp:Rating="<value>", and removes that attribute from them.
 package main
 
 import (
@@ -19,6 +19,7 @@ func main() {
 	dirPath := flag.String("dir", "", "Path to the directory containing XMP files")
 	dryRun := flag.Bool("dry-run", false, "Show what would be done without making changes")
 	workers := flag.Int("workers", 4, "Number of parallel workers")
+	rating := flag.String("rating", "", "Rating value to remove (required)")
 	flag.Parse()
 
 	if *dirPath == "" {
@@ -27,11 +28,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *rating == "" {
+		fmt.Println("Rating value must be specified")
+		flag.Usage()
+		os.Exit(1)
+	}
+
 	if *dryRun {
 		log.Printf("DRY RUN mode - no files will be modified")
 	}
 
-	log.Printf("Cleaning up XMP ratings in %v (workers: %d)", *dirPath, *workers)
+	log.Printf("Removing xmp:Rating=%q in %v (workers: %d)", *rating, *dirPath, *workers)
 
 	paths := make(chan string, *workers*10)
 	errs := make(chan error, 1)
@@ -44,7 +51,7 @@ func main() {
 			defer wg.Done()
 			for path := range paths {
 				total.Add(1)
-				changed, err := processFile(path, *dryRun)
+				changed, err := processFile(path, *rating, *dryRun)
 				if err != nil {
 					select {
 					case errs <- err:
@@ -88,7 +95,7 @@ func main() {
 	fmt.Printf("\nDone! Cleaned %d of %d file(s).\n", cleaned.Load(), total.Load())
 }
 
-func processFile(path string, dryRun bool) (bool, error) {
+func processFile(path string, rating string, dryRun bool) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return false, fmt.Errorf("failed to stat file %s: %w", path, err)
@@ -99,7 +106,7 @@ func processFile(path string, dryRun bool) (bool, error) {
 		return false, fmt.Errorf("failed to read file %s: %w", path, err)
 	}
 
-	targets := []string{`xmp:Rating="0"`, `xmp:Rating='0'`}
+	targets := []string{`xmp:Rating="` + rating + `"`, `xmp:Rating='` + rating + `'`}
 
 	modifiedContent := content
 	changed := false
