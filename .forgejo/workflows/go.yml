@@ -8,13 +8,13 @@ jobs:
     steps:
 
     - name: Set up Go 1.x
-      uses: actions/setup-go@v1
+      uses: https://code.forgejo.org/actions/setup-go@v5
       with:
         go-version: ^1.23
       id: go
 
     - name: Check out code into the Go module directory
-      uses: actions/checkout@v1
+      uses: https://code.forgejo.org/actions/checkout@v6
 
     - name: Build
       run: make build
