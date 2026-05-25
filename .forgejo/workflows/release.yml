@@ -7,16 +7,17 @@ on:
 
 jobs:
   release:
-    runs-on: docker
-    container:
-      image: golang:1.25
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Set up Go
+        uses: https://code.forgejo.org/actions/setup-go@v5
+        with:
+          go-version: ^1.23
+
       - name: Checkout
-        run: |
-          git clone ${{ github.server_url }}/${{ github.repository }} .
-          git checkout ${{ github.sha }}
+        uses: https://code.forgejo.org/actions/checkout@v6
 
       - name: Build binaries
         run: |
