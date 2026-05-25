@@ -14,7 +14,9 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: https://code.forgejo.org/actions/checkout@v6
+        run: |
+          git clone ${{ github.server_url }}/${{ github.repository }} .
+          git checkout ${{ github.sha }}
 
       - name: Build binaries
         run: |
