@@ -105,7 +105,7 @@ func extractCaptureDate(path string) (time.Time, error) {
 		return time.Time{}, err
 	}
 
-	return metadata.DateTimeOriginal(), nil
+	return metadata.ExifIFD.DateTimeOriginal, nil
 }
 
 func isSupportedFormat(path string) bool {
