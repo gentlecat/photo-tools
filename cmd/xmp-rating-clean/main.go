@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -106,6 +107,9 @@ func processFile(path string, rating string, dryRun bool) (bool, error) {
 		return false, fmt.Errorf("failed to read file %s: %w", path, err)
 	}
 
+	// Ratings appear in one of two forms: as an attribute (xmp:Rating="1", written by some
+	// applications) or as an element (<xmp:Rating>1</xmp:Rating>, written by ExifTool, which is
+	// what Immich uses for its XMP sidecars).
 	targets := []string{`xmp:Rating="` + rating + `"`, `xmp:Rating='` + rating + `'`}
 
 	modifiedContent := content
@@ -116,6 +120,14 @@ func processFile(path string, rating string, dryRun bool) (bool, error) {
 			modifiedContent = bytes.ReplaceAll(modifiedContent, []byte(target), []byte(""))
 			changed = true
 		}
+	}
+
+	// Element form: remove the whole element, including any leading indentation and a trailing
+	// newline so we don't leave a blank line behind.
+	elementRe := regexp.MustCompile(`[ \t]*<xmp:Rating>\s*` + regexp.QuoteMeta(rating) + `\s*</xmp:Rating>[ \t]*\r?\n?`)
+	if elementRe.Match(modifiedContent) {
+		modifiedContent = elementRe.ReplaceAll(modifiedContent, []byte(""))
+		changed = true
 	}
 
 	if changed {

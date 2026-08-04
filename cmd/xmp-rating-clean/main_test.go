@@ -44,6 +44,18 @@ func TestProcessFile(t *testing.T) {
 			expected:        ` xmp:Rating="1" `,
 			expectedChanged: true,
 		},
+		{
+			name:            "element form",
+			input:           "<rdf:Description>\n      <xmp:Rating>0</xmp:Rating>\n</rdf:Description>",
+			expected:        "<rdf:Description>\n</rdf:Description>",
+			expectedChanged: true,
+		},
+		{
+			name:            "element form non-matching rating",
+			input:           "<rdf:Description>\n      <xmp:Rating>5</xmp:Rating>\n</rdf:Description>",
+			expected:        "<rdf:Description>\n      <xmp:Rating>5</xmp:Rating>\n</rdf:Description>",
+			expectedChanged: false,
+		},
 	}
 
 	for _, tt := range tests {
