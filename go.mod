@@ -3,7 +3,7 @@ module go.roman.zone/photo-tools
 go 1.25.0
 
 require (
-	github.com/evanoberholster/imagemeta v0.3.1
+	github.com/evanoberholster/imagemeta v1.0.0
 	github.com/fatih/color v1.19.0
 	github.com/trimmer-io/go-xmp v1.0.0
 )
@@ -11,9 +11,8 @@ require (
 require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/philhofer/fwd v1.1.2 // indirect
+	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/rs/zerolog v1.29.0 // indirect
-	github.com/tinylib/msgp v1.1.8 // indirect
+	github.com/tinylib/msgp v1.6.3 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 )
