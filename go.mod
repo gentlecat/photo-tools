@@ -1,9 +1,9 @@
 module go.roman.zone/photo-tools
 
-go 1.25.0
+go 1.27.0
 
 require (
-	github.com/evanoberholster/imagemeta v1.0.0
+	github.com/evanoberholster/imagemeta v1.1.0
 	github.com/fatih/color v1.19.0
 	github.com/trimmer-io/go-xmp v1.0.0
 )

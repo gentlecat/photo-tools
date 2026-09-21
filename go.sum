@@ -5,6 +5,8 @@ github.com/evanoberholster/imagemeta v0.3.1 h1:E4GUjXcvlVMjP9joN25+bBNf3Al3MTTfM
 github.com/evanoberholster/imagemeta v0.3.1/go.mod h1:V0vtDJmjTqvwAYO8r+u33NRVIMXQb0qSqEfImoKEiXM=
 github.com/evanoberholster/imagemeta v1.0.0 h1:FlSihlsjkWIoS83wmgPOP3CbAxlRpxM8jQGZgLu+MWQ=
 github.com/evanoberholster/imagemeta v1.0.0/go.mod h1:2ITZJjD1ygzWIhepvn8coRvpaFcnDNk3E6hx6v7z8DU=
+github.com/evanoberholster/imagemeta v1.1.0 h1:0iBtgVxLORZTZAlKxRcNodBmjMfHCSFwUh8Asmi83oI=
+github.com/evanoberholster/imagemeta v1.1.0/go.mod h1:nmf6le+qSyoRAXgp2psPbtfkxcEgf/AZGgai9pnN8d0=
 github.com/fatih/color v1.19.0 h1:Zp3PiM21/9Ld6FzSKyL5c/BULoe/ONr9KlbYVOfG8+w=
 github.com/fatih/color v1.19.0/go.mod h1:zNk67I0ZUT1bEGsSGyCZYZNrHuTkJJB+r6Q9VuMi0LE=
 github.com/godbus/dbus/v5 v5.0.4/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
