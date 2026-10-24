@@ -1,83 +1,122 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of an existing release to rebuild and re-upload
+        required: true
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
-      - name: Set up Go
+      - name: Resolve Release
+        id: release
+        env:
+          # FORGEJO_TOKEN is the automatic job token; it can write this repo's releases.
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          API: ${{ github.server_url }}/api/v1
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          PAYLOAD_ID: ${{ github.event.release.id }}
+          PAYLOAD_TAG: ${{ github.event.release.tag_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -e
+
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+            ID=""
+          else
+            TAG="${PAYLOAD_TAG:-$REF_NAME}"
+            ID="$PAYLOAD_ID"
+          fi
+
+          # The release event payload isn't documented, so look the release up by tag if it lacks an ID.
+          if [ -z "$ID" ]; then
+            ID=$(curl -fsS "$API/repos/$REPO/releases/tags/$TAG" \
+              -H "Authorization: token $FORGEJO_TOKEN" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+          fi
+
+          echo "Release $TAG (ID: $ID)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+
+      - name: Set Up Go
         uses: https://code.forgejo.org/actions/setup-go@v7
         with:
           go-version: ^1.23
 
       - name: Checkout
         uses: https://code.forgejo.org/actions/checkout@v7
+        with:
+          ref: ${{ steps.release.outputs.tag }}
 
-      - name: Build binaries
+      - name: Build Binaries
         run: |
+          set -e
           mkdir -p dist
 
-          # Linux (Unraid / most servers)
-          GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -o dist/xmp-rating-clean-linux-amd64  ./cmd/xmp-rating-clean
-          GOOS=linux   GOARCH=arm64 CGO_ENABLED=0 go build -o dist/xmp-rating-clean-linux-arm64  ./cmd/xmp-rating-clean
-          GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -o dist/xmp-cleanup-linux-amd64       ./cmd/xmp-cleanup
-          GOOS=linux   GOARCH=arm64 CGO_ENABLED=0 go build -o dist/xmp-cleanup-linux-arm64       ./cmd/xmp-cleanup
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            GOOS=${target%/*}
+            GOARCH=${target#*/}
+            EXT=""
+            if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
 
-          # macOS
-          GOOS=darwin  GOARCH=amd64 CGO_ENABLED=0 go build -o dist/xmp-rating-clean-darwin-amd64 ./cmd/xmp-rating-clean
-          GOOS=darwin  GOARCH=arm64 CGO_ENABLED=0 go build -o dist/xmp-rating-clean-darwin-arm64 ./cmd/xmp-rating-clean
-          GOOS=darwin  GOARCH=amd64 CGO_ENABLED=0 go build -o dist/xmp-cleanup-darwin-amd64      ./cmd/xmp-cleanup
-          GOOS=darwin  GOARCH=arm64 CGO_ENABLED=0 go build -o dist/xmp-cleanup-darwin-arm64      ./cmd/xmp-cleanup
+            for tool in xmp-rating-clean xmp-cleanup; do
+              GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=0 go build -o "dist/$tool-$GOOS-$GOARCH$EXT" "./cmd/$tool"
+            done
+          done
 
-          # Windows
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o dist/xmp-rating-clean-windows-amd64.exe ./cmd/xmp-rating-clean
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o dist/xmp-cleanup-windows-amd64.exe      ./cmd/xmp-cleanup
+          ls -l dist
 
-      - name: Update latest release
+      - name: Upload Assets
         env:
           FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
           API: ${{ github.server_url }}/api/v1
           REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
         run: |
           set -e
 
-          # Delete existing "latest" release if it exists
-          EXISTING=$(curl -sf "$API/repos/$REPO/releases/tags/latest" \
-            -H "Authorization: token $FORGEJO_TOKEN" || echo "")
+          EXISTING=$(curl -fsS "$API/repos/$REPO/releases/$RELEASE_ID/assets" \
+            -H "Authorization: token $FORGEJO_TOKEN")
 
-          if [ -n "$EXISTING" ]; then
-            EXISTING_ID=$(echo "$EXISTING" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
-            echo "Deleting existing latest release (ID: $EXISTING_ID)..."
-            curl -sf -X DELETE "$API/repos/$REPO/releases/$EXISTING_ID" \
-              -H "Authorization: token $FORGEJO_TOKEN" || true
-          fi
-
-          # Delete the "latest" tag so it can be recreated pointing to the new commit
-          curl -sf -X DELETE "$API/repos/$REPO/tags/latest" \
-            -H "Authorization: token $FORGEJO_TOKEN" || true
-
-          # Create a new "latest" release
-          RESPONSE=$(curl -sf -X POST "$API/repos/$REPO/releases" \
-            -H "Authorization: token $FORGEJO_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"tag_name\":\"latest\",\"name\":\"latest\",\"draft\":false,\"prerelease\":false}")
-
-          echo "Create release response: $RESPONSE"
-          RELEASE_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
-          echo "Release ID: $RELEASE_ID"
-
-          # Upload each binary
           for file in dist/*; do
             filename=$(basename "$file")
+
+            # Replace an asset left over from a previous run, so re-runs are idempotent.
+            ASSET_ID=$(echo "$EXISTING" | python3 -c "import sys,json; print(next((str(a['id']) for a in json.load(sys.stdin) if a['name'] == sys.argv[1]), ''))" "$filename")
+            if [ -n "$ASSET_ID" ]; then
+              echo "Deleting existing $filename (ID: $ASSET_ID)..."
+              curl -fsS -X DELETE "$API/repos/$REPO/releases/$RELEASE_ID/assets/$ASSET_ID" \
+                -H "Authorization: token $FORGEJO_TOKEN"
+            fi
+
             echo "Uploading $filename..."
-            curl -sf -X POST "$API/repos/$REPO/releases/$RELEASE_ID/assets?name=$filename" \
+            curl -fsS -o /dev/null -X POST "$API/repos/$REPO/releases/$RELEASE_ID/assets?name=$filename" \
               -H "Authorization: token $FORGEJO_TOKEN" \
               -H "Content-Type: application/octet-stream" \
               --data-binary @"$file"
           done
+
+      - name: Sync Mirrors
+        env:
+          # The job token is limited to this repo; ACCESS_TOKEN is the user-level token, which can dispatch mirror-sync.
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          API: ${{ github.server_url }}/api/v1
+        run: |
+          set -e
+
+          curl -fsS -X POST "$API/repos/roman/mirror-sync/actions/workflows/sync.yml/dispatches" \
+            -H "Authorization: token $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"ref":"main","inputs":{"repo":"photo-tools","dry_run":"false"}}'
